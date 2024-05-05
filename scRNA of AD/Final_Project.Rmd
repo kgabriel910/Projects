@@ -1,0 +1,149 @@
+---
+title: "BMI710 Final Project"
+author: "Kyla Gabriel"
+date: "2024-04-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Methodology
+
+## Read-in Libraries
+```{r}
+library(Seurat)
+library(harmony)
+library(tidyverse)
+library(presto)
+library(ggplot2)
+library(tibble)
+library(dplyr)
+library(tidyr)
+library(data.table)
+library(Matrix)
+library(readr)
+library(harmony)
+library(fgsea)
+library(msigdbr)
+library(monocle3)
+library(DESeq2)
+```
+
+## Quality Control
+```{r}
+# Data Importation
+counts = readRDS("~/College Courses/Graduate (HMS)/Single-Cell Analysis/Milestones/counts.rds")
+meta.data = readRDS("~/College Courses/Graduate (HMS)/Single-Cell Analysis/Milestones/meta.data.rds")
+
+# Seurat Object Correction
+sc_obj = CreateSeuratObject(counts = counts)
+sc_obj = AddMetaData(sc_obj, meta.data)
+
+# Quality Control
+sc_obj[["percent_mito"]] <- PercentageFeatureSet(sc_obj, pattern = "^MT-")
+sc_obj <- subset(sc_obj, subset = nFeature_RNA > 500 & percent_mito < 20)
+VlnPlot(sc_obj, features = c("nFeature_RNA", "nCount_RNA", "percent_mito"), ncol = 3)
+ggplot(sc_obj[[]], aes(x = nFeature_RNA, y = percent_mito)) + geom_point() + labs(title="Percent of Mitochondria versus Detected Expressed Genes")
+```
+
+## Data Processing
+```{r}
+# Data Processing
+sc_obj <- NormalizeData(sc_obj, normalization.method = "LogNormalize", scale.factor = 10000)
+sc_obj <- FindVariableFeatures(sc_obj, selection.method = "vst", nfeatures = 2000) 
+sc_obj <- ScaleData(sc_obj, do.scale  = TRUE, do.center = TRUE) 
+
+# Dimensional Reduction
+sc_obj <- RunPCA(sc_obj)
+sc_obj <- RunUMAP(sc_obj, dims = 1:20)
+ElbowPlot(sc_obj, ndims = 20, reduction = "pca")
+UMAPPlot(sc_obj)
+
+# Batch Correction - Quality Control
+sc_obj = RunHarmony(sc_obj, c("SampleID", "PatientID", "SampleBatch"))
+sc_obj <- RunUMAP(sc_obj, dims = 1:20, reduction = "harmony", reduction.name = "umap_harmony")
+DimPlot(sc_obj, reduction = "umap_harmony", group.by = "SampleID")
+DimPlot(sc_obj, reduction = "umap_harmony", group.by = "PatientID")
+DimPlot(sc_obj, reduction = "umap_harmony", group.by = "SampleBatch")
+```
+
+## Clustering and Cell-type Annotation
+```{r}
+# Data Clustering and Visualization
+sc_obj <- FindNeighbors(sc_obj, dims = 1:15, reduction = "harmony")
+sc_obj <- FindClusters(sc_obj, resolution = 0.02, algorithm = 1)
+DimPlot(sc_obj, reduction = "umap_harmony", label = T, group.by = "RNA_snn_res.0.02")
+
+# Top 10 marker genes per cluster  
+Idents(sc_obj) = "RNA_snn_res.0.02"
+top_markers = FindAllMarkers(sc_obj, logfc.threshold = 0.5, test.use = "wilcox")
+top10 = top_markers %>%
+  group_by(cluster) %>%
+  filter(avg_log2FC > 1) %>%
+  slice_head(n=10) %>%
+  ungroup()
+DoHeatmap(sc_obj, features=top10$gene, size=5) + theme(axis.text=element_text(size=5))
+```
+
+## Differential Abundance
+```{r}
+# Addition of Cell Types
+sc_obj@meta.data <- sc_obj@meta.data %>% 
+  mutate(cell_type = case_when(RNA_snn_res.0.02 %in% c(0,1)  ~ "Tcell",
+                               RNA_snn_res.0.02 %in% c(2,5,6) ~ "macrophage", 
+                               RNA_snn_res.0.02 %in% c(3,4) ~ "dendrocytes"))
+
+sort(table(sc_obj[["cell_type"]]),decreasing=TRUE)
+
+# Comparison of Tcells Across Braak Stages
+subject_props <- sc_obj@meta.data %>% 
+  group_by(SampleID, BraakStage) %>% 
+  summarise(prop = sum(cell_type == "Tcell")/n()) %>% 
+  ungroup
+
+ggplot(subject_props, aes(BraakStage, prop)) + 
+  geom_boxplot() +
+  labs(x = "Braak Stage", y = "Proportion", title = "Distribution of T-cells Across Braak Stages")
+
+# Statistical Testing
+wilcox.test(subject_props$prop[subject_props$BraakStage == "0"],
+            subject_props$prop[subject_props$BraakStage == "2"])
+
+```
+
+## Differential Expression
+```{r, eval=FALSE}
+# Perform Pseudobulking
+pseudo <- AggregateExpression(sc_obj, assays = "RNA", return.seurat = T, group.by = c("BraakStage", "SampleID", "seurat_clusters"))
+pseudo_s0 <- subset(pseudo, subset = BraakStage == "0")
+pseudo_s6 <- subset(pseudo, subset = BraakStage == "6")
+
+
+stage_df <- sc_obj@meta.data %>%  filter(BraakStage==0 & BraakStage==6)
+count_matrix <- ro
+
+# Perform Differential Expression Analysis 
+count_matrix <- as.matrix(GetAssayData(object = sc_obj, slot = "counts"))
+metadata_df <- as.data.frame(Idents(object = sc_obj))
+dds <- DESeqDataSetFromMatrix(countData = count_matrix,
+                              colData = cell_type,
+                              design = ~ cell_type) 
+
+dds <- DESeq(dds)
+
+ddsSE <- DESeqDataSet(se, design = ~ cell + dex)
+ddsSE
+res <- results(dds)
+res <- results(dds, name="condition_treated_vs_untreated")
+res <- results(dds, contrast=c("condition","treated","untreated")) 
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+```{r}
+# Statistical Testing
+wilcox.test(subject_props$prop[subject_props$BraakStage == "0"],
+            subject_props$prop[subject_props$BraakStage == "6"])
+```
