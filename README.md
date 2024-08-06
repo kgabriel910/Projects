@@ -9,3 +9,8 @@
 - Description: Using Alzheimer's Disease data to test scRNA analytical methods
 - Language: R
 - Updated: May 2024
+
+3) Predicting Coronary Heart Disease Diagnosis
+- Description:
+- Language: Python
+- Updated: December 2023
