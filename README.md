@@ -1,4 +1,4 @@
-# Medcial AI Projects
+# Medical AI & Coding Projects
 
 ### Covid Deep Learning 
 - Description: CNN model to analyze CT scans for COVID-19 detection 
