@@ -14,3 +14,8 @@
 - Description: Using hematological data to predict Coronary Heart Disease diagnosis
 - Language: Python
 - Updated: December 2023
+
+### Predicting Alzheimer's Disease Diagnosis
+- Description: Using demographic and clinical factors to predict Alzheimer's Disease diagnosis
+- Language: Python
+- Updated: December 2023
