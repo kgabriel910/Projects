@@ -11,6 +11,6 @@
 - Updated: May 2024
 
 3) Predicting Coronary Heart Disease Diagnosis
-- Description:
+- Description: Using hematological data to predict Coronary Heart Disease diagnosis
 - Language: Python
 - Updated: December 2023
