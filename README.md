@@ -19,3 +19,8 @@
 - Description: Using demographic and clinical factors to predict Alzheimer's Disease diagnosis
 - Language: Python
 - Updated: December 2023
+
+### Fabrication of ECG Monitor
+- Description: Creating an ECG device to demonstrate bioinstrumentation skills
+- Language: LabVIEW
+- Updated: November 2021
